@@ -2,6 +2,7 @@ package zk
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -273,4 +274,9 @@ func PathComponents(path string) []string {
 		return nil
 	}
 	return strings.Split(path[1:], "/")
+}
+
+// FormatSequence formats a sequence number as a 10-digit zero-padded string.
+func FormatSequence(seq uint32) string {
+	return fmt.Sprintf("%010d", seq)
 }
