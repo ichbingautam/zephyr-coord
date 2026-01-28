@@ -178,6 +178,36 @@ vote := Vote{LeaderID: serverID, ZXID: lastZXID, Epoch: epoch}
 2. Better votes (higher ZXID/ID) are adopted
 3. Election concludes when quorum agrees
 
+```mermaid
+sequenceDiagram
+    participant S1 as Server 1
+    participant S2 as Server 2
+    participant S3 as Server 3
+
+    Note over S1,S3: Election starts (all in LOOKING state)
+
+    S1->>S2: Vote(leader=1, zxid=100)
+    S1->>S3: Vote(leader=1, zxid=100)
+    S2->>S1: Vote(leader=2, zxid=150)
+    S2->>S3: Vote(leader=2, zxid=150)
+    S3->>S1: Vote(leader=3, zxid=80)
+    S3->>S2: Vote(leader=3, zxid=80)
+
+    Note over S1: S2 has higher ZXID, adopt vote
+    S1->>S2: Vote(leader=2, zxid=100)
+    S1->>S3: Vote(leader=2, zxid=100)
+
+    Note over S3: S2 has higher ZXID, adopt vote
+    S3->>S1: Vote(leader=2, zxid=80)
+    S3->>S2: Vote(leader=2, zxid=80)
+
+    Note over S1,S3: Quorum (3/3) agrees: Server 2 is Leader
+
+    S2->>S2: Transition to LEADING
+    S1->>S1: Transition to FOLLOWING
+    S3->>S3: Transition to FOLLOWING
+```
+
 ### 5. ZAB Broadcast Protocol
 
 Quorum-based atomic broadcast:
@@ -198,6 +228,38 @@ zxid, err := leader.Propose(OpCreate, "/path", data)
 | `Ack` | Follower acknowledgment |
 | `Commit` | Finalize transaction |
 | `Ping/Pong` | Leader heartbeats |
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant L as Leader
+    participant F1 as Follower 1
+    participant F2 as Follower 2
+
+    C->>L: Write Request (Create /app/data)
+
+    Note over L: Generate ZXID, create Proposal
+
+    L->>F1: Proposal(zxid=5, path=/app/data)
+    L->>F2: Proposal(zxid=5, path=/app/data)
+    L->>L: Write to local WAL
+
+    F1->>F1: Write to WAL
+    F1->>L: Ack(zxid=5)
+
+    F2->>F2: Write to WAL
+    F2->>L: Ack(zxid=5)
+
+    Note over L: Quorum (2/3) reached
+
+    L->>L: Commit locally
+    L->>F1: Commit(zxid=5)
+    L->>F2: Commit(zxid=5)
+    L->>C: Success Response
+
+    F1->>F1: Apply to tree
+    F2->>F2: Apply to tree
+```
 
 ---
 
