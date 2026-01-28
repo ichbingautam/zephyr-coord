@@ -361,9 +361,31 @@ ok  internal/protocol   (Codec, Request/Response encoding)
 
 ## 📚 References
 
-- [ZooKeeper Paper](https://www.usenix.org/conference/usenix-atc-10/zookeeper-wait-free-coordination-internet-scale-systems)
-- [ZAB Protocol Paper](https://ieeexplore.ieee.org/document/5958223)
-- [Jute Serialization](https://github.com/apache/zookeeper/blob/master/zookeeper-jute/)
+### Academic Papers
+
+- [ZooKeeper: Wait-free Coordination for Internet-scale Systems](https://www.usenix.org/conference/usenix-atc-10/zookeeper-wait-free-coordination-internet-scale-systems) - Original ZooKeeper paper (USENIX ATC 2010)
+- [Zab: High-performance broadcast for primary-backup systems](https://ieeexplore.ieee.org/document/5958223) - ZAB protocol specification (IEEE DSN 2011)
+- [Paxos Made Simple](https://lamport.azurewebsites.net/pubs/paxos-simple.pdf) - Foundational consensus algorithm by Leslie Lamport
+- [The Chubby Lock Service](https://research.google/pubs/the-chubby-lock-service-for-loosely-coupled-distributed-systems/) - Google's distributed lock service (inspiration for ZK)
+- [Raft: In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf) - Alternative consensus approach
+
+### Implementation Resources
+
+- [Apache ZooKeeper Source](https://github.com/apache/zookeeper) - Official Java implementation
+- [Jute Serialization Format](https://github.com/apache/zookeeper/tree/master/zookeeper-jute) - Wire protocol specification
+- [ZooKeeper Internals](https://zookeeper.apache.org/doc/current/zookeeperInternals.html) - Official architecture docs
+
+### Go Concurrency Patterns
+
+- [sync.Map Documentation](https://pkg.go.dev/sync#Map) - Lock-free concurrent map
+- [Go Memory Model](https://go.dev/ref/mem) - Understanding atomic operations
+- [Effective Go: Concurrency](https://go.dev/doc/effective_go#concurrency) - Goroutine best practices
+
+### Related Projects
+
+- [etcd](https://github.com/etcd-io/etcd) - Distributed KV store using Raft
+- [Consul](https://github.com/hashicorp/consul) - Service mesh with consensus
+- [go-zookeeper](https://github.com/go-zookeeper/zk) - Go client library for ZooKeeper
 
 ---
 
