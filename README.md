@@ -36,30 +36,166 @@ ZephyrCoord is a ground-up implementation of the ZooKeeper coordination service,
 git clone https://github.com/ichbingautam/zephyr-coord.git
 cd zephyr-coord
 go build ./cmd/zephyr-coord
+
+# Verify installation
+./zephyr-coord -version
+# ZephyrCoord version 1.0.0
 ```
 
-### Running the Server
+---
+
+## 💻 CLI Reference
+
+### Server Startup
+
+When you start ZephyrCoord, you'll see an ASCII banner and status:
+
+```
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   ███████╗███████╗██████╗ ██╗  ██╗██╗   ██╗██████╗       ║
+║   ╚══███╔╝██╔════╝██╔══██╗██║  ██║╚██╗ ██╔╝██╔══██╗      ║
+║     ███╔╝ █████╗  ██████╔╝███████║ ╚████╔╝ ██████╔╝      ║
+║    ███╔╝  ██╔══╝  ██╔═══╝ ██╔══██║  ╚██╔╝  ██╔══██╗      ║
+║   ███████╗███████╗██║     ██║  ██║   ██║   ██║  ██║      ║
+║   ╚══════╝╚══════╝╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝      ║
+║                                                           ║
+║               Coordination Service v1.0.0                 ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+
+2026/02/02 00:00:00 Starting ZephyrCoord on :2181
+2026/02/02 00:00:00 Data directory: ./zephyr-data
+2026/02/02 00:00:00 ZephyrCoord is ready, accepting connections on [::]:2181
+```
+
+### Command Line Options
 
 ```bash
-# Start with defaults (port 2181)
-./zephyr-coord
-
-# Custom configuration
-./zephyr-coord -listen :2182 -dataDir /var/zephyr -maxConnections 5000
-
-# With configuration file
-./zephyr-coord -config zoo.cfg
+./zephyr-coord [options]
 ```
 
-### CLI Options
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-listen` | string | `:2181` | Client listen address (host:port) |
+| `-dataDir` | string | `./zephyr-data` | Data directory for WAL and snapshots |
+| `-maxConnections` | int | `10000` | Maximum concurrent client connections |
+| `-config` | string | - | Path to zoo.cfg configuration file |
+| `-version` | bool | `false` | Print version and exit |
+| `-help` | bool | `false` | Print usage information |
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-listen` | `:2181` | Client listen address |
-| `-dataDir` | `./zephyr-data` | Data directory for WAL/snapshots |
-| `-maxConnections` | `10000` | Maximum client connections |
-| `-config` | - | Path to configuration file |
-| `-version` | - | Show version and exit |
+### Usage Examples
+
+```bash
+# Start with default settings (port 2181)
+./zephyr-coord
+
+# Custom port
+./zephyr-coord -listen :2182
+
+# Bind to specific interface
+./zephyr-coord -listen 192.168.1.100:2181
+
+# Custom data directory
+./zephyr-coord -dataDir /var/lib/zephyr
+
+# Limit connections
+./zephyr-coord -maxConnections 1000
+
+# Use configuration file
+./zephyr-coord -config /etc/zephyr/zoo.cfg
+
+# Production example with all options
+./zephyr-coord \
+    -listen :2181 \
+    -dataDir /var/lib/zephyr \
+    -maxConnections 5000 \
+    -config /etc/zephyr/zoo.cfg
+```
+
+### Graceful Shutdown
+
+ZephyrCoord handles SIGINT and SIGTERM for clean shutdown:
+
+```bash
+# Send shutdown signal
+kill -SIGTERM $(pgrep zephyr-coord)
+
+# Or press Ctrl+C if running interactively
+```
+
+Output on shutdown:
+
+```
+2026/02/02 00:05:00 Shutting down...
+2026/02/02 00:05:00 ZephyrCoord stopped
+```
+
+### Running as a Service
+
+#### systemd (Linux)
+
+Create `/etc/systemd/system/zephyr-coord.service`:
+
+```ini
+[Unit]
+Description=ZephyrCoord Coordination Service
+After=network.target
+
+[Service]
+Type=simple
+User=zephyr
+Group=zephyr
+ExecStart=/usr/local/bin/zephyr-coord -config /etc/zephyr/zoo.cfg
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable zephyr-coord
+sudo systemctl start zephyr-coord
+sudo systemctl status zephyr-coord
+```
+
+#### Docker
+
+```dockerfile
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY . .
+RUN go build -o zephyr-coord ./cmd/zephyr-coord
+
+FROM alpine:latest
+COPY --from=builder /app/zephyr-coord /usr/local/bin/
+EXPOSE 2181
+VOLUME ["/data"]
+CMD ["zephyr-coord", "-dataDir", "/data", "-listen", ":2181"]
+```
+
+Run:
+
+```bash
+docker build -t zephyr-coord .
+docker run -d -p 2181:2181 -v /data/zephyr:/data zephyr-coord
+```
+
+### Health Check
+
+```bash
+# Quick health check
+echo "ruok" | nc localhost 2181
+# imok
+
+# Server statistics
+echo "stat" | nc localhost 2181
+```
 
 ---
 
