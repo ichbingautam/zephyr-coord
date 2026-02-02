@@ -517,7 +517,184 @@ data, _ := queue.Take(ctx)  // Blocking
 
 ## 🔧 Core Components
 
-### FastLeaderElection
+### 1. ZXID (Transaction ID)
+
+The ZXID is a 64-bit identifier that uniquely identifies every transaction:
+
+```go
+// Structure: [32-bit epoch][32-bit counter]
+type ZXID uint64
+
+// Example: epoch=3, counter=1000 → ZXID=0x0000000300000003E8
+zxid := zk.NewZXID(3, 1000)
+epoch := zxid.Epoch()    // 3
+counter := zxid.Counter() // 1000
+```
+
+**Properties:**
+
+- Epoch increments on each leader election
+- Counter increments on each write operation
+- Globally unique and monotonically increasing
+- Used for ordering, recovery, and sync
+
+### 2. ZNode (Data Node)
+
+Each node in the tree contains:
+
+```go
+type ZNode struct {
+    Data     []byte      // Node data (max 1MB)
+    Stat     Stat        // Metadata
+    ACL      []ACL       // Access control
+    Children sync.Map    // Child nodes (lock-free)
+    Flags    NodeFlags   // Persistent, Ephemeral, Sequential
+}
+```
+
+**Node Types:**
+
+| Type | Flags | Description |
+|------|-------|-------------|
+| Persistent | 0 | Survives session disconnect |
+| Ephemeral | 1 | Deleted when session expires |
+| Sequential | 2 | Appends monotonic suffix |
+| Container | 4 | Auto-deleted when empty |
+| TTL | 8 | Expires after timeout |
+
+### 3. Sharded Tree Storage
+
+256-shard architecture for concurrent access:
+
+```go
+type Tree struct {
+    shards [256]*shard  // FNV-1a hash partitioning
+    root   *ZNode       // Root node "/"
+}
+
+// Lock-free reads via sync.Map
+data, stat, err := tree.Get("/app/config")
+
+// Writes lock only the affected shard
+stat, err := tree.Create("/app/node", data, zk.NodePersistent, acl, sessionID)
+```
+
+**Shard Distribution:**
+
+```
+path "/users/alice" → FNV-1a("/users/alice") % 256 → shard 147
+path "/orders/1234" → FNV-1a("/orders/1234") % 256 → shard 89
+```
+
+### 4. Write-Ahead Log (WAL)
+
+Durable logging with group commit:
+
+```go
+type LogEntry struct {
+    ZXID      ZXID      // Transaction ID
+    Type      OpType    // Create, SetData, Delete, etc.
+    Path      string    // Node path
+    Data      []byte    // Operation data
+    Timestamp int64     // Unix timestamp
+    Checksum  uint32    // CRC32 for integrity
+}
+```
+
+**Features:**
+
+- 64MB pre-allocated segments
+- CRC32 checksums per entry
+- Group commit: batches fsync every 1ms or 100 entries
+- Automatic segment rotation and cleanup
+
+**Recovery Process:**
+
+1. Load latest snapshot
+2. Replay WAL entries after snapshot ZXID
+3. Rebuild in-memory tree state
+
+### 5. Session Manager (Timeout Wheel)
+
+O(1) timeout detection using hierarchical timing wheels:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Timeout Wheel                        │
+│  ┌───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┬───┐   │
+│  │ 0 │ 1 │ 2 │ 3 │...│ptr│...│254│255│   │   │   │   │
+│  └───┴───┴───┴───┴───┴─▲─┴───┴───┴───┴───┴───┴───┘   │
+│                        │                               │
+│  Sessions in bucket 5: [Session{id:1001, timeout:30s}] │
+│                        [Session{id:1002, timeout:30s}] │
+└─────────────────────────────────────────────────────────┘
+```
+
+```go
+// Create session with 30s timeout
+session := sessionManager.CreateSession(30 * time.Second)
+session.AddEphemeral("/app/leader")  // Track ephemeral nodes
+
+// Touch to reset timeout
+sessionManager.TouchSession(session.ID)
+
+// On expiry: cleanup ephemerals, notify watchers
+```
+
+**Configuration:**
+
+- 256 buckets
+- 100ms tick resolution
+- Min timeout: 2s, Max timeout: 40s
+
+### 6. Watch Registry
+
+Lock-free watch management using sync.Map:
+
+```go
+type WatchManager struct {
+    dataWatches     sync.Map  // path → []Watcher
+    childrenWatches sync.Map  // path → []Watcher
+    totalWatches    atomic.Int64
+}
+```
+
+**Watch Types:**
+
+| Type | Trigger Event |
+|------|---------------|
+| Data | Node created, data changed, deleted |
+| Children | Child added or removed |
+| Persistent | Re-registers automatically |
+
+**One-shot Behavior:**
+
+- Watch fires once, then removed
+- Client must re-register for next event
+- Reduces thundering herd on popular nodes
+
+### 7. FastLeaderElection
+
+Epoch-based leader election algorithm:
+
+```go
+type Vote struct {
+    LeaderID int32   // Proposed leader's server ID
+    ZXID     ZXID    // Latest ZXID of proposed leader
+    Epoch    int64   // Election epoch
+    State    State   // LOOKING, FOLLOWING, LEADING
+}
+
+// Vote comparison rules:
+// 1. Higher ZXID wins (more recent data)
+// 2. Equal ZXID: higher ServerID wins (tiebreaker)
+func (v Vote) IsBetterThan(other Vote) bool {
+    if v.ZXID != other.ZXID {
+        return v.ZXID > other.ZXID
+    }
+    return v.LeaderID > other.LeaderID
+}
+```
 
 ```mermaid
 sequenceDiagram
@@ -544,7 +721,28 @@ sequenceDiagram
     S3->>S3: Transition to FOLLOWING
 ```
 
-### ZAB Broadcast Protocol
+### 8. ZAB Broadcast Protocol
+
+Two-phase commit with quorum acknowledgment:
+
+**Phase 1: Proposal**
+
+```go
+type Proposal struct {
+    ZXID     ZXID    // Unique transaction ID
+    OpType   OpType  // Operation type
+    Path     string  // Target path
+    Data     []byte  // Operation data
+}
+```
+
+**Phase 2: Commit**
+
+```go
+type Commit struct {
+    ZXID ZXID  // Transaction to commit
+}
+```
 
 ```mermaid
 sequenceDiagram
@@ -577,6 +775,32 @@ sequenceDiagram
     F1->>F1: Apply to tree
     F2->>F2: Apply to tree
 ```
+
+**Quorum Requirements:**
+
+- Write: (N/2)+1 followers must ACK
+- 3 nodes: tolerates 1 failure
+- 5 nodes: tolerates 2 failures
+
+### 9. Memory Pool (Slab Allocator)
+
+Reduces GC pressure via pooled allocations:
+
+```go
+// Size classes: 64B, 128B, 256B, 512B, 1KB, 4KB, 16KB, 64KB, 256KB, 1MB
+allocator := storage.NewMemPool()
+
+// Allocate from appropriate size class
+buf := allocator.Get(150)  // Returns 256B buffer
+// Use buffer...
+allocator.Put(buf)  // Return to pool
+```
+
+**Benefits:**
+
+- 90%+ reduction in allocations for common operations
+- Predictable latency (no GC pauses)
+- Cache-friendly memory access patterns
 
 ---
 
