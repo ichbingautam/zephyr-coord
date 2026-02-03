@@ -6,8 +6,9 @@ WORKDIR /app
 # Install build dependencies
 RUN apk add --no-cache git ca-certificates
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy go mod files (go.sum may not exist if no external deps)
+COPY go.mod ./
+COPY go.sum* ./
 RUN go mod download
 
 # Copy source code
@@ -16,8 +17,8 @@ COPY . .
 # Build binary
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags="-s -w -X main.version=${VERSION}" \
-    -o /zephyr-coord ./cmd/zephyr-coord
+  -ldflags="-s -w -X main.version=${VERSION}" \
+  -o /zephyr-coord ./cmd/zephyr-coord
 
 # Runtime stage
 FROM alpine:3.19
@@ -42,7 +43,7 @@ EXPOSE 2181 2888 3888 8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD echo "ruok" | nc localhost 2181 | grep -q "imok" || exit 1
+  CMD echo "ruok" | nc localhost 2181 | grep -q "imok" || exit 1
 
 # Volume for data persistence
 VOLUME ["/data"]
