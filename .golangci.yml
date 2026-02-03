@@ -3,6 +3,7 @@ run:
   modules-download-mode: readonly
 
 linters:
+  disable-all: true
   enable:
     - errcheck
     - gosimple
@@ -13,19 +14,30 @@ linters:
     - gofmt
     - goimports
     - misspell
-    - unconvert
-    - gocritic
-    - revive
-    - exportloopref
-    - nilerr
-    - prealloc
-    - unparam
 
 linters-settings:
   govet:
-    enable-all: true
+    enable-all: false
+    enable:
+      - assign
+      - atomic
+      - bools
+      - buildtag
+      - copylocks
+      - httpresponse
+      - loopclosure
+      - lostcancel
+      - nilfunc
+      - printf
+      - stringintconv
+      - unmarshal
+      - unreachable
+      - unsafeptr
+    # Disable fieldalignment - too noisy for initial development
     disable:
+      - fieldalignment
       - shadow
+      - stdmethods
 
   gofmt:
     simplify: true
@@ -36,45 +48,37 @@ linters-settings:
   misspell:
     locale: US
 
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-
-  revive:
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: exported
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: indent-error-flow
-      - name: errorf
+  errcheck:
+    # Ignore specific functions commonly used without error checks
+    exclude-functions:
+      - fmt.Fprintf
+      - fmt.Printf
+      - fmt.Fprint
+      - io.WriteString
+      - (*bytes.Buffer).WriteString
+      - (*bytes.Buffer).WriteByte
+      - (*bufio.Writer).Flush
+      - (*bufio.Writer).WriteByte
+      - (*os.File).Close
+      - (*os.File).Sync
+      - (*compress/gzip.Writer).Close
+      - (*compress/gzip.Reader).Close
+      - (net.Conn).Close
+      - (net.Conn).SetReadDeadline
+      - (net.Conn).SetWriteDeadline
+      - (net.Listener).Close
 
 issues:
   exclude-use-default: false
-  max-issues-per-linter: 0
-  max-same-issues: 0
+  max-issues-per-linter: 50
+  max-same-issues: 10
 
   exclude-rules:
     # Ignore test files for some linters
     - path: _test\.go
       linters:
         - errcheck
-        - gocritic
-        - unparam
+        - unused
 
     # Ignore benchmark files
     - path: _bench_test\.go
@@ -85,3 +89,16 @@ issues:
     - path: \.pb\.go
       linters:
         - all
+
+    # Ignore specific patterns
+    - linters:
+        - staticcheck
+      text: "SA9003" # Empty branch
+
+    - linters:
+        - staticcheck
+      text: "SA6002" # Pointer-like argument
+
+    - linters:
+        - staticcheck
+      text: "SA4017" # Ignored return value

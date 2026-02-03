@@ -44,7 +44,7 @@ func NewDistributedLock(client ZKClient, path, id string) *DistributedLock {
 	}
 }
 
-// Lock acquires the lock, blocking until it's obtained or context is cancelled.
+// Lock acquires the lock, blocking until it's obtained or context is canceled.
 func (l *DistributedLock) Lock(ctx context.Context) error {
 	return l.LockWithTimeout(ctx, 0) // 0 means wait forever
 }
