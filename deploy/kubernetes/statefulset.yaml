@@ -1,0 +1,92 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: zephyr-coord
+  namespace: zephyr-coord
+spec:
+  serviceName: zephyr-coord-headless
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: zephyr-coord
+  template:
+    metadata:
+      labels:
+        app: zephyr-coord
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: zephyr-coord
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: zephyr-coord
+          image: ghcr.io/ichbingautam/zephyr-coord:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 2181
+              name: client
+            - containerPort: 2888
+              name: follower
+            - containerPort: 3888
+              name: election
+            - containerPort: 8080
+              name: admin
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: CLUSTER_SIZE
+              value: "3"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/zephyr-coord
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - echo ruok | nc localhost 2181 | grep imok
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - echo ruok | nc localhost 2181 | grep imok
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+      volumes:
+        - name: config
+          configMap:
+            name: zephyr-coord-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

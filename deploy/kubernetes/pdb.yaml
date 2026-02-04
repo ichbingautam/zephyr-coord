@@ -1,0 +1,11 @@
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: zephyr-coord-pdb
+  namespace: zephyr-coord
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: zephyr-coord

@@ -1,0 +1,11 @@
+---
+# ZephyrCoord Kubernetes Manifests (standalone)
+# These can be applied directly without Terraform
+# kubectl apply -f namespace.yaml -f configmap.yaml -f statefulset.yaml -f services.yaml
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zephyr-coord
+  labels:
+    app: zephyr-coord

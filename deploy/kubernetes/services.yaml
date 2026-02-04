@@ -1,0 +1,51 @@
+---
+# Headless service for internal peer discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: zephyr-coord-headless
+  namespace: zephyr-coord
+spec:
+  clusterIP: None
+  selector:
+    app: zephyr-coord
+  ports:
+    - name: client
+      port: 2181
+      targetPort: 2181
+    - name: follower
+      port: 2888
+      targetPort: 2888
+    - name: election
+      port: 3888
+      targetPort: 3888
+---
+# LoadBalancer service for client access
+apiVersion: v1
+kind: Service
+metadata:
+  name: zephyr-coord-client
+  namespace: zephyr-coord
+spec:
+  type: LoadBalancer
+  selector:
+    app: zephyr-coord
+  ports:
+    - name: client
+      port: 2181
+      targetPort: 2181
+---
+# ClusterIP service for admin access
+apiVersion: v1
+kind: Service
+metadata:
+  name: zephyr-coord-admin
+  namespace: zephyr-coord
+spec:
+  type: ClusterIP
+  selector:
+    app: zephyr-coord
+  ports:
+    - name: admin
+      port: 8080
+      targetPort: 8080

@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zephyr-coord-config
+  namespace: zephyr-coord
+data:
+  config.yaml: |
+    # ZephyrCoord Configuration
+    tickTime: 2000
+    initLimit: 10
+    syncLimit: 5
+    dataDir: /data
+    clientPort: 2181
+    maxClientCnxns: 60
+    snapCount: 100000
