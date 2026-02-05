@@ -269,36 +269,31 @@ zephyr-coord/
 │
 ├── internal/
 │   ├── config/                  # Configuration management
-│   │   └── config.go            # zoo.cfg compatible parser
-│   │
-│   ├── storage/                 # Persistence layer
-│   │   ├── tree.go              # Sharded in-memory tree (256 shards)
-│   │   ├── mempool.go           # Slab allocator (64B to 1MB classes)
-│   │   ├── wal.go               # Write-ahead log with CRC32 checksums
-│   │   └── snapshot.go          # Atomic snapshots with cleanup
-│   │
+│   ├── storage/                 # Persistence layer (tree, WAL, snapshot)
 │   ├── server/                  # Server components
-│   │   ├── transport.go         # TCP server with graceful shutdown
-│   │   ├── processor.go         # Request handling pipeline
-│   │   ├── server.go            # Main server coordinator
-│   │   ├── datastore.go         # Coordinates tree + WAL + snapshot
-│   │   ├── session.go           # Session manager with timeout wheel
-│   │   ├── watch.go             # Watch registry (lock-free sync.Map)
-│   │   ├── acl.go               # ACL manager with auth providers
-│   │   ├── admin.go             # Four-letter admin commands
-│   │   └── metrics.go           # Prometheus-compatible metrics
+│   ├── protocol/                # Wire protocol (Jute codec)
+│   └── cluster/                 # Distributed consensus (ZAB)
+│
+├── deploy/                      # Deployment configurations
+│   ├── terraform/               # AWS EKS infrastructure
+│   │   ├── main.tf              # Provider and locals
+│   │   ├── variables.tf         # Input variables
+│   │   ├── vpc.tf               # VPC and networking
+│   │   ├── eks.tf               # EKS cluster
+│   │   ├── kubernetes.tf        # K8s resources
+│   │   └── outputs.tf           # Output values
 │   │
-│   ├── protocol/                # Wire protocol
-│   │   ├── codec.go             # Jute-compatible binary encoder/decoder
-│   │   └── request.go           # ZooKeeper request/response types
+│   ├── kubernetes/              # Standalone K8s manifests
+│   │   ├── statefulset.yaml     # 3-node ensemble
+│   │   ├── services.yaml        # Headless + LoadBalancer
+│   │   └── pdb.yaml             # Pod Disruption Budget
 │   │
-│   └── cluster/                 # Distributed consensus
-│       ├── peer.go              # Peer connection management
-│       ├── zab.go               # ZAB protocol message types
-│       ├── election.go          # FastLeaderElection algorithm
-│       ├── leader.go            # Leader broadcast and commit
-│       ├── follower.go          # Follower sync and heartbeats
-│       └── cluster.go           # Main cluster coordinator
+│   └── README.md                # Deployment guide
+│
+├── notebooks/                   # Interactive documentation
+│   └── zephyr_coord_guide.ipynb # Architecture, recipes, performance
+│
+├── benchmark/                   # Performance benchmarks
 │
 └── README.md
 ```
@@ -861,6 +856,61 @@ ok  pkg/zk             (race) ✅
 
 - Automatic cleanup on session expiry
 - Sequential ordering enables fair locking
+
+---
+
+## ☁️ Cloud Deployment
+
+### Terraform (AWS EKS)
+
+Deploy a production-ready 3-node cluster to AWS EKS:
+
+```bash
+cd deploy/terraform
+
+# Configure
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your settings
+
+# Deploy
+terraform init
+terraform plan
+terraform apply
+
+# Connect
+aws eks update-kubeconfig --region us-east-1 --name zephyr-coord-dev
+kubectl get pods -n zephyr-coord
+```
+
+### Kubernetes (Standalone)
+
+Apply directly to any Kubernetes cluster:
+
+```bash
+kubectl apply -f deploy/kubernetes/
+kubectl get pods -n zephyr-coord
+```
+
+See [deploy/README.md](deploy/README.md) for full deployment documentation.
+
+---
+
+## 📓 Interactive Notebook
+
+Explore ZephyrCoord interactively with the Jupyter notebook:
+
+```bash
+pip install jupyter matplotlib numpy
+jupyter notebook notebooks/zephyr_coord_guide.ipynb
+```
+
+**Topics covered:**
+
+- Architecture overview with diagrams
+- Core components (ZXID, ZNode, Stat)
+- Client operations with examples
+- Distributed recipes (leader election, locks)
+- Performance analysis and benchmarks
 
 ---
 
