@@ -1,0 +1,48 @@
+---
+# ServiceAccount for ZephyrCoord pods
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: zephyr-coord
+  namespace: zephyr-coord
+  labels:
+    app: zephyr-coord
+---
+# Role with minimal permissions for peer discovery
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: zephyr-coord
+  namespace: zephyr-coord
+  labels:
+    app: zephyr-coord
+rules:
+  # Allow reading pods for peer discovery
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Allow reading endpoints for service discovery
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  # Allow reading configmaps for configuration
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+# RoleBinding to associate ServiceAccount with Role
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: zephyr-coord
+  namespace: zephyr-coord
+  labels:
+    app: zephyr-coord
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: zephyr-coord
+subjects:
+  - kind: ServiceAccount
+    name: zephyr-coord
+    namespace: zephyr-coord
