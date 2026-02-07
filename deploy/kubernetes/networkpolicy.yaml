@@ -1,0 +1,66 @@
+---
+# NetworkPolicy to restrict traffic to ZephyrCoord pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: zephyr-coord
+  namespace: zephyr-coord
+  labels:
+    app: zephyr-coord
+spec:
+  podSelector:
+    matchLabels:
+      app: zephyr-coord
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow client connections from any namespace
+    - ports:
+        - protocol: TCP
+          port: 2181
+    # Allow follower/election traffic only from same namespace (cluster internal)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: zephyr-coord
+      ports:
+        - protocol: TCP
+          port: 2888
+        - protocol: TCP
+          port: 3888
+    # Allow admin API from same namespace
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow cluster-internal communication (peer discovery)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: zephyr-coord
+      ports:
+        - protocol: TCP
+          port: 2181
+        - protocol: TCP
+          port: 2888
+        - protocol: TCP
+          port: 3888
+    # Allow Kubernetes API for peer discovery
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
