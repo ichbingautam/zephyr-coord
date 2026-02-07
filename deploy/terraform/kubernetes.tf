@@ -11,6 +11,166 @@ resource "kubernetes_namespace" "zephyr" {
   depends_on = [module.eks]
 }
 
+# ServiceAccount for ZephyrCoord pods
+resource "kubernetes_service_account" "zephyr" {
+  metadata {
+    name      = "zephyr-coord"
+    namespace = kubernetes_namespace.zephyr.metadata[0].name
+    labels = {
+      app = "zephyr-coord"
+    }
+  }
+}
+
+# Role with minimal permissions for peer discovery
+resource "kubernetes_role" "zephyr" {
+  metadata {
+    name      = "zephyr-coord"
+    namespace = kubernetes_namespace.zephyr.metadata[0].name
+    labels = {
+      app = "zephyr-coord"
+    }
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["endpoints"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["configmaps"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+# RoleBinding to associate ServiceAccount with Role
+resource "kubernetes_role_binding" "zephyr" {
+  metadata {
+    name      = "zephyr-coord"
+    namespace = kubernetes_namespace.zephyr.metadata[0].name
+    labels = {
+      app = "zephyr-coord"
+    }
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.zephyr.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.zephyr.metadata[0].name
+    namespace = kubernetes_namespace.zephyr.metadata[0].name
+  }
+}
+
+# NetworkPolicy for traffic restriction
+resource "kubernetes_network_policy" "zephyr" {
+  metadata {
+    name      = "zephyr-coord"
+    namespace = kubernetes_namespace.zephyr.metadata[0].name
+    labels = {
+      app = "zephyr-coord"
+    }
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        app = "zephyr-coord"
+      }
+    }
+
+    policy_types = ["Ingress", "Egress"]
+
+    # Allow client connections from any source
+    ingress {
+      ports {
+        protocol = "TCP"
+        port     = "2181"
+      }
+    }
+
+    # Allow follower/election traffic only from same app
+    ingress {
+      from {
+        pod_selector {
+          match_labels = {
+            app = "zephyr-coord"
+          }
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = "2888"
+      }
+      ports {
+        protocol = "TCP"
+        port     = "3888"
+      }
+    }
+
+    # Allow admin API from same namespace
+    ingress {
+      from {
+        namespace_selector {}
+      }
+      ports {
+        protocol = "TCP"
+        port     = "8080"
+      }
+    }
+
+    # Allow DNS resolution
+    egress {
+      to {
+        namespace_selector {}
+      }
+      ports {
+        protocol = "UDP"
+        port     = "53"
+      }
+      ports {
+        protocol = "TCP"
+        port     = "53"
+      }
+    }
+
+    # Allow cluster-internal communication
+    egress {
+      to {
+        pod_selector {
+          match_labels = {
+            app = "zephyr-coord"
+          }
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = "2181"
+      }
+      ports {
+        protocol = "TCP"
+        port     = "2888"
+      }
+      ports {
+        protocol = "TCP"
+        port     = "3888"
+      }
+    }
+  }
+}
+
 resource "kubernetes_config_map" "zephyr_config" {
   metadata {
     name      = "zephyr-coord-config"
@@ -69,6 +229,9 @@ resource "kubernetes_stateful_set" "zephyr" {
       }
 
       spec {
+        service_account_name             = kubernetes_service_account.zephyr.metadata[0].name
+        termination_grace_period_seconds = 30
+
         affinity {
           pod_anti_affinity {
             required_during_scheduling_ignored_during_execution {
