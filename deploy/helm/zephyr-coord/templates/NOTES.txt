@@ -1,0 +1,30 @@
+ZephyrCoord has been deployed!
+
+1. Get the application URL by running these commands:
+{{- if eq .Values.service.client.type "LoadBalancer" }}
+   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+   Watch status with: kubectl get svc -n {{ .Release.Namespace }} {{ include "zephyr-coord.fullname" . }}-client -w
+
+   export SERVICE_IP=$(kubectl get svc -n {{ .Release.Namespace }} {{ include "zephyr-coord.fullname" . }}-client -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+   echo "ZephyrCoord endpoint: $SERVICE_IP:{{ .Values.service.client.port }}"
+{{- else if eq .Values.service.client.type "ClusterIP" }}
+   export POD_NAME=$(kubectl get pods -n {{ .Release.Namespace }} -l "{{ include "zephyr-coord.selectorLabels" . | replace ": " "=" | replace "\n" "," }}" -o jsonpath="{.items[0].metadata.name}")
+   kubectl -n {{ .Release.Namespace }} port-forward $POD_NAME {{ .Values.service.client.port }}:2181
+   echo "ZephyrCoord endpoint: 127.0.0.1:{{ .Values.service.client.port }}"
+{{- else if eq .Values.service.client.type "NodePort" }}
+   export NODE_PORT=$(kubectl get svc -n {{ .Release.Namespace }} {{ include "zephyr-coord.fullname" . }}-client -o jsonpath='{.spec.ports[0].nodePort}')
+   export NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+   echo "ZephyrCoord endpoint: $NODE_IP:$NODE_PORT"
+{{- end }}
+
+2. Verify the cluster status:
+   kubectl get pods -n {{ .Release.Namespace }} -l app={{ include "zephyr-coord.fullname" . }}
+
+3. Check ZephyrCoord health:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "zephyr-coord.fullname" . }}-0 -- sh -c 'echo ruok | nc localhost 2181'
+   # Expected response: imok
+
+4. View cluster configuration:
+   kubectl exec -n {{ .Release.Namespace }} {{ include "zephyr-coord.fullname" . }}-0 -- cat /data/cluster.conf
+
+For more information, visit: https://github.com/ichbingautam/zephyr-coord

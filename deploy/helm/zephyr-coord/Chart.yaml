@@ -1,0 +1,27 @@
+apiVersion: v2
+name: zephyr-coord
+description: A Helm chart for ZephyrCoord - ZooKeeper-compatible coordination service
+type: application
+
+# Chart version - increment this when making changes to the chart
+version: 0.1.0
+
+# Application version - matches the ZephyrCoord release
+appVersion: "1.0.0"
+
+home: https://github.com/ichbingautam/zephyr-coord
+sources:
+  - https://github.com/ichbingautam/zephyr-coord
+
+maintainers:
+  - name: Gautam Shubham
+    url: https://github.com/ichbingautam
+
+keywords:
+  - zephyr
+  - coordination
+  - zookeeper
+  - distributed
+  - consensus
+
+icon: https://raw.githubusercontent.com/ichbingautam/zephyr-coord/main/docs/icon.png

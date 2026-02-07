@@ -1,0 +1,68 @@
+{{- if .Values.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "zephyr-coord.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- if .Values.networkPolicy.allowExternalClients }}
+    # Allow client connections from any source
+    - ports:
+        - protocol: TCP
+          port: 2181
+    {{- end }}
+    # Allow follower/election traffic only from same app
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "zephyr-coord.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 2888
+        - protocol: TCP
+          port: 3888
+    # Allow admin API from same namespace
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow cluster-internal communication
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "zephyr-coord.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 2181
+        - protocol: TCP
+          port: 2888
+        - protocol: TCP
+          port: 3888
+    # Allow Kubernetes API access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

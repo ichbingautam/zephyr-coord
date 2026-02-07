@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    # ZephyrCoord Configuration
+    tickTime: {{ .Values.config.tickTime }}
+    initLimit: {{ .Values.config.initLimit }}
+    syncLimit: {{ .Values.config.syncLimit }}
+    dataDir: /data
+    clientPort: 2181
+    maxClientCnxns: {{ .Values.config.maxClientCnxns }}
+    snapCount: {{ .Values.config.snapCount }}

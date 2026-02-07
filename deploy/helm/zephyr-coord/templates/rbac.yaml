@@ -1,0 +1,35 @@
+{{- if .Values.rbac.create -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "zephyr-coord.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zephyr-coord.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

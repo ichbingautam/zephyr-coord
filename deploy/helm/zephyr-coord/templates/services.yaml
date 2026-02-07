@@ -1,0 +1,66 @@
+---
+# Headless service for internal peer discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zephyr-coord.headlessServiceName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "zephyr-coord.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: client
+      port: 2181
+      targetPort: 2181
+    - name: follower
+      port: 2888
+      targetPort: 2888
+    - name: election
+      port: 3888
+      targetPort: 3888
+---
+# Client service for external access
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+  {{- with .Values.service.client.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.client.type }}
+  selector:
+    {{- include "zephyr-coord.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: client
+      port: {{ .Values.service.client.port }}
+      targetPort: 2181
+---
+# Admin service for internal access
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "zephyr-coord.fullname" . }}-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zephyr-coord.labels" . | nindent 4 }}
+  {{- with .Values.service.admin.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.admin.type }}
+  selector:
+    {{- include "zephyr-coord.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: admin
+      port: {{ .Values.service.admin.port }}
+      targetPort: 8080
