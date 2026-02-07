@@ -16,6 +16,8 @@ spec:
       labels:
         app: zephyr-coord
     spec:
+      serviceAccountName: zephyr-coord
+      terminationGracePeriodSeconds: 30
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -23,6 +25,42 @@ spec:
                 matchLabels:
                   app: zephyr-coord
               topologyKey: kubernetes.io/hostname
+      initContainers:
+        # Init container for cluster bootstrapping and peer discovery
+        - name: init-cluster
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              # Extract ordinal from pod name (e.g., zephyr-coord-0 -> 0)
+              ORDINAL=${POD_NAME##*-}
+              echo "Pod ordinal: $ORDINAL"
+
+              # Generate server ID (1-indexed)
+              SERVER_ID=$((ORDINAL + 1))
+              echo "Server ID: $SERVER_ID"
+              echo "$SERVER_ID" > /data/myid
+
+              # Generate cluster configuration
+              echo "Generating cluster configuration..."
+              for i in $(seq 0 $((CLUSTER_SIZE - 1))); do
+                echo "server.$((i + 1))=zephyr-coord-$i.zephyr-coord-headless.zephyr-coord.svc.cluster.local:2888:3888"
+              done > /data/cluster.conf
+
+              cat /data/cluster.conf
+              echo "Init complete"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CLUSTER_SIZE
+              value: "3"
+          volumeMounts:
+            - name: data
+              mountPath: /data
       containers:
         - name: zephyr-coord
           image: ghcr.io/ichbingautam/zephyr-coord:latest
