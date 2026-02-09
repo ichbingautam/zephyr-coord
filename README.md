@@ -280,13 +280,20 @@ zephyr-coord/
 │   │   ├── variables.tf         # Input variables
 │   │   ├── vpc.tf               # VPC and networking
 │   │   ├── eks.tf               # EKS cluster
-│   │   ├── kubernetes.tf        # K8s resources
+│   │   ├── kubernetes.tf        # K8s resources (RBAC, NetworkPolicy)
 │   │   └── outputs.tf           # Output values
 │   │
 │   ├── kubernetes/              # Standalone K8s manifests
-│   │   ├── statefulset.yaml     # 3-node ensemble
+│   │   ├── rbac.yaml            # ServiceAccount, Role, RoleBinding
+│   │   ├── networkpolicy.yaml   # Traffic restriction
+│   │   ├── statefulset.yaml     # 3-node ensemble with init container
 │   │   ├── services.yaml        # Headless + LoadBalancer
 │   │   └── pdb.yaml             # Pod Disruption Budget
+│   │
+│   ├── helm/zephyr-coord/       # Helm chart
+│   │   ├── Chart.yaml           # Chart metadata
+│   │   ├── values.yaml          # Default configuration
+│   │   └── templates/           # Kubernetes templates
 │   │
 │   └── README.md                # Deployment guide
 │
@@ -861,9 +868,40 @@ ok  pkg/zk             (race) ✅
 
 ## ☁️ Cloud Deployment
 
-### Terraform (AWS EKS)
+ZephyrCoord provides three deployment options for Kubernetes environments.
 
-Deploy a production-ready 3-node cluster to AWS EKS:
+### Option 1: Helm Chart (Recommended)
+
+The most flexible option with full configurability:
+
+```bash
+# Install with default values
+helm install zephyr-coord deploy/helm/zephyr-coord -n zephyr-coord --create-namespace
+
+# Install with custom values
+helm install zephyr-coord deploy/helm/zephyr-coord \
+  -n zephyr-coord --create-namespace \
+  --set replicaCount=5 \
+  --set resources.requests.memory=1Gi \
+  --set persistence.size=50Gi
+
+# Upgrade existing release
+helm upgrade zephyr-coord deploy/helm/zephyr-coord -n zephyr-coord
+```
+
+**Key Configuration Options:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `replicaCount` | `3` | Number of nodes (3, 5, or 7) |
+| `resources.requests.memory` | `512Mi` | Memory request |
+| `persistence.size` | `20Gi` | Storage per node |
+| `networkPolicy.enabled` | `true` | Enable traffic restriction |
+| `podAntiAffinity.enabled` | `true` | Spread pods across nodes |
+
+### Option 2: Terraform (AWS EKS)
+
+Full infrastructure-as-code deployment to AWS EKS:
 
 ```bash
 cd deploy/terraform
@@ -882,14 +920,37 @@ aws eks update-kubeconfig --region us-east-1 --name zephyr-coord-dev
 kubectl get pods -n zephyr-coord
 ```
 
-### Kubernetes (Standalone)
+**Terraform includes:**
+
+- VPC with public/private subnets
+- EKS cluster with managed node groups
+- RBAC (ServiceAccount, Role, RoleBinding)
+- NetworkPolicy for traffic restriction
+- PodDisruptionBudget for HA
+
+### Option 3: Kubernetes Manifests (Standalone)
 
 Apply directly to any Kubernetes cluster:
 
 ```bash
+# Apply all manifests
 kubectl apply -f deploy/kubernetes/
+
+# Verify deployment
 kubectl get pods -n zephyr-coord
+kubectl get svc -n zephyr-coord
+
+# Check cluster health
+kubectl exec -n zephyr-coord zephyr-coord-0 -- sh -c 'echo ruok | nc localhost 2181'
 ```
+
+**Manifests include:**
+
+- `rbac.yaml` - ServiceAccount with minimal permissions
+- `networkpolicy.yaml` - Traffic restriction policies
+- `statefulset.yaml` - 3-node StatefulSet with init container
+- `services.yaml` - Headless + LoadBalancer + Admin services
+- `pdb.yaml` - Pod Disruption Budget
 
 See [deploy/README.md](deploy/README.md) for full deployment documentation.
 
